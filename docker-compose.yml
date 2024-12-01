@@ -1,0 +1,26 @@
+services:
+  backend:
+    image: ecosrev-backend
+    container_name: ecosrev-backend
+    ports:
+      - "4000:4000"
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - MONGODB_DB=${MONGODB_DB}
+      - EXPIRES_IN=${EXPIRES_IN}
+      - SECRET_KEY=${SECRET_KEY}
+      - PORT=${PORT}
+    restart: unless-stopped
+
+  frontend:
+    image: ecosrev-frontend-app
+    container_name: ecosrev-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+networks:
+  default:
+    driver: bridge

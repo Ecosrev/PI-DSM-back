@@ -1,57 +1,64 @@
-import mongodb from 'mongodb'
-const { MongoClient, ObjectId } = mongodb
+import mongodb from "mongodb";
+const { MongoClient, ObjectId } = mongodb;
 
-import { config } from 'dotenv'
-config() // carrega as variáveis definidas no .env
+import { config } from "dotenv";
+config(); // carrega as variáveis definidas no .env
 
-const { MONGODB_URI, MONGODB_DB } = process.env
+const { MONGODB_URI, MONGODB_DB } = process.env;
 
 if (!MONGODB_URI) {
-    throw new Error(
-        'Por favor, defina a variável de ambiente MONGODB_URI dentro do arquivo .env'
-    )
+  throw new Error(
+    "Por favor, defina a variável de ambiente MONGODB_URI dentro do arquivo .env"
+  );
 }
 
 if (!MONGODB_DB) {
-    throw new Error(
-        'Por favor, defina a variável de ambiente MONGODB_DB dentro do arquivo .env'
-    )
+  throw new Error(
+    "Por favor, defina a variável de ambiente MONGODB_DB dentro do arquivo .env"
+  );
 }
 
-/**
- * O objeto Global é usado aqui para manter uma conexão em cache entre hot reloads em desenvolvimento. 
- * Isso evita que as conexões cresçam exponencialmente durante o uso das rotas da API. 
- * Saiba mais: https://nodejs.org/api/globals.html#globals_global_objects
- */
-let cached = global.mongo
+// Opções de conexão para melhorar a resiliência
+const mongoOptions = {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  retryWrites: true,
+  retryReads: true,
+  connectTimeoutMS: 10000, // 10 segundos
+  socketTimeoutMS: 45000, // 45 segundos
+};
+
+let cached = global.mongo;
 
 if (!cached) {
-    cached = global.mongo = { conn: null, promise: null }
+  cached = global.mongo = { conn: null, promise: null };
 }
 
 export async function connectToDatabase() {
-    if (cached.conn) {
-        return cached.conn
-    }
+  // Se já tiver uma conexão, retorna ela
+  if (cached.conn) {
+    return cached.conn;
+  }
 
-    if (!cached.promise) {
+  // Se não tiver uma promise de conexão, cria uma
+  if (!cached.promise) {
+    cached.promise = MongoClient.connect(MONGODB_URI, mongoOptions)
+      .then((client) => {
+        return {
+          client,
+          db: client.db(MONGODB_DB),
+          ObjectId: ObjectId,
+        };
+      })
+      .catch((error) => {
+        console.error(`❌ Erro de conexão ao MongoDB: ${error}`);
+        throw new Error(`❌ Não foi possível conectar no MongoDB: ${error}`);
+      });
+  }
 
-        cached.promise = MongoClient.connect(MONGODB_URI).then((client) => {
-            return {
-                client,
-                db: client.db(MONGODB_DB),
-                ObjectId: ObjectId
-            }
-        }).catch((error) => {
-            throw new Error(
-                `❌ Não foi possível conectar no MongoDB: ${error}`
-            )
-        }).finally(() => {
-            console.log('🍃 Conectado ao MongoDB')
-        })
-    }
-    cached.conn = await cached.promise
-    return cached.conn
+  // Aguarda a promise de conexão e armazena o resultado
+  cached.conn = await cached.promise;
+  return cached.conn;
 }
 
-export { MONGODB_DB, MONGODB_URI }
+export { MONGODB_DB, MONGODB_URI };
