@@ -1,6 +1,6 @@
 {
   "name": "backendmongo",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "description": "Backend MongoDB",
   "main": "api/index.js",
   "type": "module",
