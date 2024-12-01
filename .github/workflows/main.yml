@@ -4,34 +4,110 @@ on:
   push:
     branches:
       - master
-  pull_request:
-    branches:
-      - master
+    paths-ignore:
+      - 'package.json'
+      - 'package-lock.json'
 
 jobs:
-  build:
+  version:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.CI_GITHUB_TOKEN }}
 
-      - name: Configurando Node
+      - name: Configurar Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: '22'
+          node-version: '14'
 
-      - name: Instalando dependências
+      - name: Instalar dependências
         run: npm install
 
-      #- name: Lint code
-      #  run: npm run lint
+      - name: Instalar semver
+        run: npm install -g semver
 
-      - name: Build
-        run: npm run build
+      - name: Verificar e criar tag inicial se não existir
+        id: create_initial_tag
+        env:
+          GH_TOKEN: ${{ secrets.CI_GH_TOKEN }}
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
 
-      - name: Test
-        run: npm test
+          if ! git rev-parse "v0.0.0" >/dev/null 2>&1; then
+            git tag -a v0.0.0 -m "Initial release"
+            git push origin v0.0.0
+          fi
 
-      #- name: Check Coverage
-      #  run: npx jest --coverage --coverageThreshold="{\"global\":{\"branches\":80,\"functions\":80,\"lines\":80,\"statements\":80}}"
+      - name: Calcular nova versão
+        id: version
+        run: |
+          git fetch --tags
+          LAST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+          if [ -z "$LAST_TAG" ]; then
+            LAST_TAG="v0.0.0"
+          fi
+          echo "Versão Atual: $LAST_TAG"
+          
+          COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"%s" | tr '\n' ' ')
+          
+          echo "Commits desde a última tag:"
+          echo "$COMMITS"
+          
+          MAJOR=0
+          MINOR=0
+          PATCH=0
+          
+          if [[ "$COMMITS" == *"BREAKING CHANGE"* ]]; then
+            MAJOR=1
+          elif [[ "$COMMITS" == *"feat"* ]]; then
+            MINOR=1
+          elif [[ "$COMMITS" == *"fix"* ]]; then
+            PATCH=1
+          fi
+          
+          CURRENT_VERSION=${LAST_TAG#v}
+          NEW_VERSION=$CURRENT_VERSION
+          if [[ $MAJOR -eq 1 ]]; then
+            NEW_VERSION=$(semver -i major $CURRENT_VERSION)
+          elif [[ $MINOR -eq 1 ]]; then
+            NEW_VERSION=$(semver -i minor $CURRENT_VERSION)
+          elif [[ $PATCH -eq 1 ]]; then
+            NEW_VERSION=$(semver -i patch $CURRENT_VERSION)
+          fi
+          
+          echo "Nova versão: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_ENV
+
+      - name: Atualizar versão no package.json
+        run: |
+          npm version ${{ env.new_version }} --no-git-tag-version --allow-same-version
+
+      - name: Criar e push nova tag, se não existir
+        run: |
+          if git rev-parse "v${{ env.new_version }}" >/dev/null 2>&1; then
+            echo "Tag v${{ env.new_version }} já existe. Pulando criação de tag."
+          else
+            git tag v${{ env.new_version }}
+            git push origin v${{ env.new_version }}
+          fi
+
+      - name: Commit mudanças
+        env:
+          GH_TOKEN: ${{ secrets.CI_GITHUB_TOKEN }}
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          
+          git add package.json package-lock.json
+          
+          if [[ -n "$(git diff --cached --name-only)" ]]; then
+            git commit -m "chore(release): version ${{ env.new_version }} [skip ci]"
+            git push origin master
+          else
+            echo "Sem mudanças para commitar"
+          fi
