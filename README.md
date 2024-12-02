@@ -121,7 +121,7 @@ A documentação fornece detalhes sobre as rotas disponíveis, parâmetros neces
 
 
 ## 🎨 Design e Interfaces
-A plataforma foi projetada com uma interface limpa e intuitiva, priorizando a experiência do usuário. O design segue a filosofia de Atomic Design, garantindo que os componentes sejam reutilizáveis e facilmente escaláveis. A paleta de cores foi escolhida para ser suave e amigável, com destaque para tons de roxo e azul, transmitindo modernidade e confiança.
+A plataforma foi projetada com uma interface limpa e intuitiva, priorizando a experiência do usuário. O design segue a filosofia de Atomic Design, garantindo que os componentes sejam reutilizáveis e facilmente escaláveis. A paleta de cores foi escolhida para ser suave e amigável, com destaque para tons de verde, transmitindo compromisso com o meio ambiente.
 
 ## 💡 Protótipo
 
